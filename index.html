@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Text Analyser</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f5f5f5;
+        }
+        .header {
+            background-color: #143ec9;
+            color: #ffffff;
+            padding: 20px;
+            text-align: center;
+        }
+        .content {
+            padding: 20px;
+        }
+        .analyser-card, .outline-card {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .control-buttons {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .control-buttons > * {
+            margin: 0 5px; /* Spacing between buttons */
+        }
+        .outline-item label {
+            margin-left: 5px;
+            flex-grow: 1;
+        }
+        .alert-custom {
+    color: #ffffff; /* White text */
+    background-color: #143ec9; /* Custom color */
+    border-color: #143ec9; /* Custom color */
+}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Website Text Analyser</h1>
+    </div>
+    <div class="content container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <form method="POST" action="/calculate" id="urlForm" class="form-group d-flex justify-content-center">
+                    <div class="input-group mb-3">
+                        <input name="url" type="url" class="form-control" placeholder="Enter website URL..." aria-label="Website URL" required>
+                        <button class="btn btn-primary" type="submit">Analyse</button>
+                    </div>
+                </form>
+                
+            </div>
+            
+        </div>
+        
+        <form id="exportForm" method="POST" action="/export-csv">
+            <input type="hidden" name="outlineData" id="outlineData">
+        </form>
+        
+        
+            <!--  Display Success Message -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category if category != 'custom' else 'custom' }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        
+        <div class="container">
+            <div class="row row-cols-1 row-cols-lg-3 card-deck">
+                {% for url_data in urls_data %}
+                    <div class="col card" style="background-color: aliceblue;word-wrap: break-word;padding: 5px 5px 5px 5px;border-radius: 5px;">
+                        <form method="POST" action="/deletecookie">
+                            <input type="hidden" name="url" value="{{ url_data['url'] }}">
+                            <button type="submit" class="btn btn-danger">🗑️</button>
+                        </form>
+                        <p><b>Website:</b> {{ url_data["url"] }}</p>
+                        <p><b>Word Count:</b> {{ url_data["word count"] }}</p>
+                        <p><b>Meta Title:</b> {{ url_data["meta title"] }}</p>
+                        {% for text in url_data["headings"] %}
+                            <div class="form-check">
+                                <input class="form-check-input outline-checkbox" type="checkbox" value="{{ text['heading'] }}: {{ text['text'] }}" id="checkbox{{ loop.index }}">
+                                <label class="form-check-label" for="checkbox{{ loop.index }}">
+                            {% if text["heading"] == "H1" %}
+                                <p><b><</b><b>{{ text["heading"] }}></b> {{ text["text"] }}</p>
+                            {% endif %}
+                            {% if text["heading"] == "H2" %}
+                                <p style="font-size: 15px;margin-left: 20px;"><b><</b><b>{{ text["heading"] }}></b> {{ text["text"] }}</p>
+                            {% endif %}
+                            {% if text["heading"] == "H3" %}
+                                <p style="font-size: 14px;margin-left: 35px;"><b><</b><b>{{ text["heading"] }}></b> {{ text["text"] }}</p>
+                            {% endif %}
+                            {% if text["heading"] == "H4" %}
+                                <p style="font-size: 13px;margin-left: 50px;"><b><</b><b>{{ text["heading"] }}></b> {{ text["text"] }}</p>
+                            {% endif %}
+                            {% if text["heading"] == "H5" %}
+                                <p style="font-size: 12px;margin-left: 65px;"><b><</b><b>{{ text["heading"] }}></b> {{ text["text"] }}</p>
+                            {% endif %}
+                            {% if text["heading"] == "H6" %}
+                                <p style="font-size: 11px;margin-left: 80px;"><b><</b><b>{{ text["heading"] }}></b> {{ text["text"] }}</p>
+                            {% endif %}
+                                    
+                            
+                            </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+       
+
+            <div class="col-md-8">
+                <div class="outline-card">
+                    <h2 class="mb-3">My Outline</h2>
+                    <div id="outlineContent">
+                        <!-- Dynamically added outline content will appear here -->
+                    </div>
+                </div>
+            </div>
+        
+            <div class="control-buttons">
+                <button type="button" class="btn btn-primary btn-lg" id="exportButton">Export as CSV</button>
+                <form action="/clearcookies" method="post" style="display: inline;">
+                    <!--  if you want to  using CSRF protection logic , then add on this -->
+                    <button type="submit" class="btn btn-primary btn-lg">Clear All</button>
+                </form>
+            </div>
+        </div>   
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const checkboxes = document.querySelectorAll('.outline-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function () {
+                    const contentDiv = document.getElementById('outlineContent');
+                    if (this.checked) {
+                        const outlineItem = document.createElement('div');
+                        outlineItem.classList.add('outline-item');
+                        outlineItem.id = 'outline-' + this.id;
+    
+                        const outlineCheckbox = document.createElement('input');
+                        outlineCheckbox.type = 'checkbox';
+                        outlineCheckbox.checked = true;
+                        outlineCheckbox.onchange = function() {
+                            outlineItem.remove();
+                            document.getElementById(checkbox.id).checked = false; // Uncheck the original checkbox
+                        };
+    
+                        // Clone the label with styles
+                        const label = document.createElement('label');
+                        const valueParts = this.value.split(': ');
+                        const heading = valueParts[0];
+                        const text = valueParts.slice(1).join(': ');
+    
+                        label.innerHTML = `<b>${heading}</b>: ${text}`;
+                        // Apply specific styles based on heading
+                        switch(heading) {
+                            case 'H1':
+                                label.style = 'font-size: 16px; font-weight: 5px;';
+                                break;
+                            case 'H2':
+                                label.style = 'font-size: 15px; margin-left: 20px;';
+                                break;
+                            case 'H3':
+                                label.style = 'font-size: 14px; margin-left: 35px;';
+                                break;
+                            case 'H4':
+                                label.style = 'font-size: 13px; margin-left: 50px;';
+                                break;
+                            case 'H5':
+                                label.style = 'font-size: 12px; margin-left: 65px;';
+                                break;
+                            case 'H6':
+                                label.style = 'font-size: 11px; margin-left: 80px;';
+                                break;
+                        }
+    
+                        outlineItem.appendChild(outlineCheckbox);
+                        outlineItem.appendChild(label);
+                        contentDiv.appendChild(outlineItem);
+                    } else {
+                        const divToRemove = document.getElementById('outline-' + this.id);
+                        if (divToRemove) {
+                            contentDiv.removeChild(divToRemove);
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('exportButton').addEventListener('click', function() {
+            const outlineItems = document.querySelectorAll('.outline-item label');
+            const outlineData = Array.from(outlineItems).map(item => item.textContent);
+            
+            // Assuming gather the additional details here
+            const additionalDetails = {/* ... */};
+            
+            document.getElementById('outlineData').value = JSON.stringify({
+                outline: outlineData,
+                details: additionalDetails,
+            });
+            document.getElementById('exportForm').submit();
+        });
+    </script>
+    
+</body>
+</html>
